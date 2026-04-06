@@ -1,4 +1,5 @@
 export type Role = 'employee' | 'pm' | 'manager' | 'admin';
+export type ThemePreference = 'light' | 'dark' | 'system';
 
 export type TaskStatus =
   | 'todo'

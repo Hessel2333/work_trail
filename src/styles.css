@@ -266,6 +266,57 @@ input[type='checkbox'] {
     0 14px 30px rgba(15, 23, 42, 0.12);
 }
 
+.theme-switch-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 28px rgba(15, 23, 42, 0.1);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.floating-theme-switch {
+  position: fixed;
+  left: 16px;
+  bottom: 136px;
+  z-index: 27;
+  width: 124px;
+}
+
+.theme-switch-option {
+  flex: 1 1 0;
+  min-height: 30px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.theme-switch-option:hover {
+  color: var(--text);
+}
+
+.theme-switch-option.active {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
 .profile-card strong {
   display: block;
   font-size: 0.92rem;
@@ -2038,6 +2089,10 @@ textarea:focus {
     display: none;
   }
 
+  .floating-theme-switch {
+    display: none;
+  }
+
   .nav-item {
     flex: 0 0 auto;
     min-width: 88px;
@@ -2345,6 +2400,10 @@ textarea:focus {
     max-width: none;
   }
 
+  .floating-theme-switch {
+    display: none;
+  }
+
   .date-nav-group input {
     width: 124px;
   }
@@ -2361,6 +2420,358 @@ textarea:focus {
     flex-wrap: nowrap;
     padding-bottom: 2px;
   }
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --bg-accent: rgba(10, 132, 255, 0.16);
+  --surface: rgba(28, 31, 39, 0.9);
+  --surface-strong: rgba(38, 42, 52, 0.96);
+  --surface-muted: rgba(33, 37, 45, 0.9);
+  --surface-soft: rgba(44, 48, 58, 0.82);
+  --surface-tint: rgba(10, 132, 255, 0.18);
+  --chrome: rgba(24, 27, 34, 0.74);
+  --chrome-strong: rgba(28, 31, 39, 0.82);
+  --text: rgba(255, 255, 255, 0.96);
+  --text-soft: rgba(255, 255, 255, 0.84);
+  --text-muted: rgba(235, 235, 245, 0.58);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --shadow-window: 0 28px 72px rgba(0, 0, 0, 0.42);
+  --shadow-panel: 0 16px 40px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 8px 22px rgba(0, 0, 0, 0.24);
+  --shadow-float: 0 22px 54px rgba(0, 0, 0, 0.38);
+}
+
+html[data-theme='dark'] {
+  background:
+    radial-gradient(circle at top left, rgba(10, 132, 255, 0.12), transparent 26%),
+    radial-gradient(circle at top right, rgba(94, 92, 230, 0.12), transparent 24%),
+    linear-gradient(180deg, #11141a 0%, #090b10 100%);
+}
+
+html[data-theme='dark'] body {
+  color: var(--text);
+}
+
+html[data-theme='dark'] .sidebar {
+  background: linear-gradient(180deg, rgba(28, 31, 39, 0.88), rgba(20, 23, 31, 0.8));
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    var(--shadow-window);
+}
+
+html[data-theme='dark'] .workspace-shell {
+  background:
+    linear-gradient(180deg, rgba(25, 28, 35, 0.9), rgba(16, 18, 24, 0.86)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--shadow-window);
+}
+
+html[data-theme='dark'] .main-toolbar {
+  background: linear-gradient(180deg, rgba(28, 31, 39, 0.84), rgba(20, 23, 31, 0.7));
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .profile-card,
+html[data-theme='dark'] .theme-switch-card,
+html[data-theme='dark'] .mobile-nav {
+  background: rgba(28, 31, 39, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme='dark'] .nav-item:hover,
+html[data-theme='dark'] .mobile-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .nav-item.active,
+html[data-theme='dark'] .mobile-nav-item.active,
+html[data-theme='dark'] .theme-switch-option.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+html[data-theme='dark'] .theme-switch-option:hover {
+  color: var(--text);
+}
+
+html[data-theme='dark'] .toolbar-month-chip {
+  background: rgba(10, 132, 255, 0.18);
+  color: #7fc4ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .date-nav-group,
+html[data-theme='dark'] .segmented-control {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme='dark'] .icon-button,
+html[data-theme='dark'] .date-nav-group input,
+html[data-theme='dark'] .segmented-control button.active,
+html[data-theme='dark'] .secondary-button,
+html[data-theme='dark'] .ghost-link {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-soft);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 16px rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme='dark'] .icon-button:hover,
+html[data-theme='dark'] .secondary-button:hover,
+html[data-theme='dark'] .ghost-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+html[data-theme='dark'] .danger-button {
+  background: rgba(255, 69, 58, 0.16);
+  color: #ff8a80;
+}
+
+html[data-theme='dark'] .danger-button:hover {
+  background: rgba(255, 69, 58, 0.22);
+}
+
+html[data-theme='dark'] .top-notice.info {
+  background: rgba(10, 132, 255, 0.18);
+  color: #8bc8ff;
+}
+
+html[data-theme='dark'] .top-notice.error {
+  background: rgba(255, 69, 58, 0.18);
+  color: #ff9f98;
+}
+
+html[data-theme='dark'] .spotlight-card,
+html[data-theme='dark'] .panel-card,
+html[data-theme='dark'] .stat-card,
+html[data-theme='dark'] .task-column,
+html[data-theme='dark'] .task-card,
+html[data-theme='dark'] .task-palette-card,
+html[data-theme='dark'] .selected-task-card,
+html[data-theme='dark'] .empty-state,
+html[data-theme='dark'] .quick-pick-item,
+html[data-theme='dark'] .timeline-board,
+html[data-theme='dark'] .task-form-card,
+html[data-theme='dark'] .tasks-sidebar {
+  background: linear-gradient(180deg, rgba(31, 34, 42, 0.94), rgba(22, 25, 32, 0.9));
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--shadow-card);
+}
+
+html[data-theme='dark'] .task-row,
+html[data-theme='dark'] .activity-row,
+html[data-theme='dark'] .metric-row,
+html[data-theme='dark'] .risk-row {
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] .task-row,
+html[data-theme='dark'] .activity-row,
+html[data-theme='dark'] .metric-row,
+html[data-theme='dark'] .risk-row,
+html[data-theme='dark'] .manager-member-head,
+html[data-theme='dark'] .manager-member-cell,
+html[data-theme='dark'] .manager-week-head-cell,
+html[data-theme='dark'] .manager-week-cell,
+html[data-theme='dark'] .manager-day-axis-track,
+html[data-theme='dark'] .manager-day-track {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] .task-card,
+html[data-theme='dark'] .task-palette-card,
+html[data-theme='dark'] .quick-pick-item,
+html[data-theme='dark'] .task-column,
+html[data-theme='dark'] .tasks-sidebar,
+html[data-theme='dark'] .task-form-card {
+  border-color: rgba(255, 255, 255, 0.03);
+}
+
+html[data-theme='dark'] .task-card:hover,
+html[data-theme='dark'] .task-palette-card:hover,
+html[data-theme='dark'] .quick-pick-item:hover {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme='dark'] .task-card.selected,
+html[data-theme='dark'] .task-palette-card.selected {
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme='dark'] .task-column-header strong,
+html[data-theme='dark'] .task-card h4,
+html[data-theme='dark'] .task-palette-card strong,
+html[data-theme='dark'] .card-header h2,
+html[data-theme='dark'] .card-header h3,
+html[data-theme='dark'] .toolbar-title-group strong,
+html[data-theme='dark'] .profile-card strong,
+html[data-theme='dark'] .manager-member-cell strong {
+  color: var(--text);
+}
+
+html[data-theme='dark'] input,
+html[data-theme='dark'] select,
+html[data-theme='dark'] textarea {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+html[data-theme='dark'] input:focus,
+html[data-theme='dark'] select:focus,
+html[data-theme='dark'] textarea:focus {
+  box-shadow:
+    inset 0 0 0 1px rgba(10, 132, 255, 0.52),
+    0 0 0 4px rgba(10, 132, 255, 0.16);
+}
+
+html[data-theme='dark'] .inline-chip {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme='dark'] .timeline-board {
+  background: linear-gradient(180deg, rgba(28, 31, 39, 0.96), rgba(21, 24, 31, 0.92));
+}
+
+html[data-theme='dark'] .time-axis {
+  color: var(--text-muted);
+}
+
+html[data-theme='dark'] .day-column-header {
+  background: linear-gradient(180deg, rgba(34, 38, 46, 0.96), rgba(26, 29, 36, 0.84));
+  border-color: rgba(255, 255, 255, 0.04);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .day-column-body {
+  background: linear-gradient(180deg, rgba(23, 26, 33, 0.94), rgba(18, 20, 27, 0.9));
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+html[data-theme='dark'] .day-column-body.today {
+  background:
+    linear-gradient(180deg, rgba(10, 132, 255, 0.12), rgba(10, 132, 255, 0.03) 24%, rgba(18, 20, 27, 0.92) 100%);
+  border-color: rgba(10, 132, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(10, 132, 255, 0.08);
+}
+
+html[data-theme='dark'] .timeline-slot {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .timeline-slot.minor {
+  border-top-color: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] .timeline-slot.within-workday {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+html[data-theme='dark'] .timeline-block,
+html[data-theme='dark'] .draft-block,
+html[data-theme='dark'] .task-drop-preview,
+html[data-theme='dark'] .move-preview-block {
+  border-color: color-mix(in srgb, var(--block-color, var(--accent)) 18%, rgba(255, 255, 255, 0.04));
+  background:
+    linear-gradient(180deg, rgba(37, 40, 49, 0.94), rgba(30, 33, 42, 0.9)),
+    color-mix(in srgb, var(--block-color, var(--accent)) 10%, rgba(22, 24, 31, 0.92));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--block-color, var(--accent)) 14%, rgba(255, 255, 255, 0.03)),
+    0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme='dark'] .timeline-block.conflict {
+  background:
+    linear-gradient(180deg, rgba(49, 31, 32, 0.94), rgba(35, 24, 25, 0.9)),
+    rgba(255, 69, 58, 0.12) !important;
+  border-color: rgba(255, 69, 58, 0.14) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 69, 58, 0.14),
+    0 10px 24px rgba(0, 0, 0, 0.22) !important;
+}
+
+html[data-theme='dark'] .timeline-block.selected {
+  border-color: rgba(10, 132, 255, 0.12);
+  outline: 2px solid rgba(10, 132, 255, 0.08);
+}
+
+html[data-theme='dark'] .block-body {
+  color: var(--text);
+}
+
+html[data-theme='dark'] .block-type-row,
+html[data-theme='dark'] .block-body span,
+html[data-theme='dark'] .task-stats,
+html[data-theme='dark'] .task-progress span,
+html[data-theme='dark'] .task-row-meta,
+html[data-theme='dark'] .mini-stat-list span,
+html[data-theme='dark'] .stat-card span,
+html[data-theme='dark'] .manager-week-summary,
+html[data-theme='dark'] .editor-meta,
+html[data-theme='dark'] .muted-copy,
+html[data-theme='dark'] .brand-block p,
+html[data-theme='dark'] .toolbar-title-group span,
+html[data-theme='dark'] .profile-card p,
+html[data-theme='dark'] .timeline-page .card-header h3 {
+  color: var(--text-muted);
+}
+
+html[data-theme='dark'] .resize-handle {
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+
+html[data-theme='dark'] .resize-handle:hover,
+html[data-theme='dark'] .resize-handle:focus-visible {
+  background: rgba(10, 132, 255, 0.92);
+}
+
+html[data-theme='dark'] .inspector-card {
+  background: linear-gradient(180deg, rgba(22, 24, 31, 0.98), rgba(16, 18, 24, 0.96));
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--shadow-float);
+}
+
+html[data-theme='dark'] .inspector-card input,
+html[data-theme='dark'] .inspector-card select,
+html[data-theme='dark'] .inspector-card textarea {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
 }
 
 @media (prefers-reduced-motion: reduce) {

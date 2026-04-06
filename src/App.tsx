@@ -5,7 +5,7 @@ import { TaskBoardView } from './components/TaskBoardView';
 import { TimelineView } from './components/TimelineView';
 import { initialState } from './data/mockData';
 import { buildProgressSnapshots } from './lib/analytics';
-import { loadState, saveState } from './lib/storage';
+import { loadState, loadThemePreference, saveState, saveThemePreference } from './lib/storage';
 import { shiftDate, toIsoDate } from './lib/time';
 import type {
   AppState,
@@ -14,6 +14,7 @@ import type {
   ReworkRecord,
   Task,
   TaskStatus,
+  ThemePreference,
   TimeBlock,
   WorkType
 } from './types';
@@ -28,6 +29,12 @@ const navItems: Array<{ id: ActiveView; label: string }> = [
   { id: 'timeline', label: '日程' },
   { id: 'tasks', label: '任务' },
   { id: 'analytics', label: '统计' }
+];
+
+const themeItems: Array<{ id: ThemePreference; label: string }> = [
+  { id: 'light', label: '浅色' },
+  { id: 'dark', label: '深色' },
+  { id: 'system', label: '系统' }
 ];
 
 const viewMeta: Record<ActiveView, { title: string; subtitle: string }> = {
@@ -78,6 +85,10 @@ function hasBlockOverlap(blocks: TimeBlock[], candidate: Pick<TimeBlock, 'date' 
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState() ?? initialState);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => loadThemePreference());
+  const [prefersDark, setPrefersDark] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [timelineMode, setTimelineMode] = useState<TimelineMode>('week');
   const [selectedDate, setSelectedDate] = useState(getSelectedDateSeed(state));
@@ -106,10 +117,33 @@ export default function App() {
       }).format(new Date(`${selectedDate}T00:00:00`)),
     [selectedDate]
   );
+  const resolvedTheme = themePreference === 'system' ? (prefersDark ? 'dark' : 'light') : themePreference;
 
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    saveThemePreference(themePreference);
+  }, [themePreference]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const updatePreference = (event: MediaQueryListEvent | MediaQueryList) => {
+      setPrefersDark(event.matches);
+    };
+
+    updatePreference(mediaQuery);
+
+    const listener = (event: MediaQueryListEvent) => updatePreference(event);
+    mediaQuery.addEventListener('change', listener);
+    return () => mediaQuery.removeEventListener('change', listener);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
+  }, [resolvedTheme]);
 
   useEffect(() => {
     if (!notice) {
@@ -538,6 +572,20 @@ export default function App() {
           ))}
         </nav>
       </aside>
+
+      <div className="theme-switch-card floating-theme-switch" role="group" aria-label="主题切换">
+        {themeItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`theme-switch-option ${themePreference === item.id ? 'active' : ''}`}
+            aria-pressed={themePreference === item.id}
+            onClick={() => setThemePreference(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       <div className="profile-card floating-profile-card">
         <div className="avatar-badge">{currentUser.avatar}</div>
