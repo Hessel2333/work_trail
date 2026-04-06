@@ -71,6 +71,12 @@ export const blockReasonLabel: Record<BlockReason, string> = {
   external_delay: '外部延期'
 };
 
+export const riskLevelLabel = {
+  high: '高风险',
+  medium: '中风险',
+  low: '低风险'
+} as const;
+
 export const workTypeOptions = Object.entries(workTypeLabel);
 export const reworkReasonOptions = Object.entries(reworkReasonLabel);
 export const blockReasonOptions = Object.entries(blockReasonLabel);

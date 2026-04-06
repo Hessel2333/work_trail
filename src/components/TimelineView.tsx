@@ -35,6 +35,8 @@ type InteractionState =
       date: string;
       rectTop: number;
       rectHeight: number;
+      originClientY: number;
+      hasDragged: boolean;
       startMinute: number;
       currentMinute: number;
     }
@@ -127,6 +129,7 @@ export function TimelineView({
   const [now, setNow] = useState(() => new Date());
   const currentTimeRef = useRef<HTMLDivElement | null>(null);
   const dragPreviewRef = useRef<HTMLElement | null>(null);
+  const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const currentUser = state.employees.find((employee) => employee.id === state.currentUserId)!;
   const visibleDates = mode === 'day' ? [selectedDate] : getWeekDates(selectedDate);
   const currentUserBlocks = state.timeBlocks.filter((block) => block.employeeId === currentUser.id);
@@ -191,6 +194,37 @@ export function TimelineView({
   const todayIso = toIsoDate(now);
   const currentMinute = now.getHours() * 60 + now.getMinutes();
 
+  function findAvailableStartMinute(date: string, durationMinutes = 60) {
+    const dateBlocks = currentUserBlocks
+      .filter((block) => block.date === date)
+      .sort((left, right) => left.startMinute - right.startMinute);
+    const workWindows: Array<[number, number]> = [
+      [WORKDAY_START, 11 * 60 + 30],
+      [13 * 60 + 30, WORKDAY_END]
+    ];
+
+    for (const [windowStart, windowEnd] of workWindows) {
+      let cursor = windowStart;
+      const blocksInWindow = dateBlocks.filter(
+        (block) => block.endMinute > windowStart && block.startMinute < windowEnd
+      );
+
+      for (const block of blocksInWindow) {
+        const boundedStart = Math.max(block.startMinute, windowStart);
+        if (boundedStart - cursor >= durationMinutes) {
+          return cursor;
+        }
+        cursor = Math.max(cursor, Math.min(block.endMinute, windowEnd));
+      }
+
+      if (windowEnd - cursor >= durationMinutes) {
+        return cursor;
+      }
+    }
+
+    return undefined;
+  }
+
   useEffect(() => {
     const timer = window.setInterval(() => {
       setNow(new Date());
@@ -247,7 +281,8 @@ export function TimelineView({
 
         const minute = snapMinuteByRect(event.clientY, current.rectTop, current.rectHeight);
         if (current.type === 'create') {
-          return { ...current, currentMinute: minute };
+          const hasDragged = current.hasDragged || Math.abs(event.clientY - current.originClientY) >= 4;
+          return { ...current, currentMinute: minute, hasDragged };
         }
         if (current.type === 'move') {
           const hoveredDate =
@@ -274,6 +309,11 @@ export function TimelineView({
       }
 
       if (currentInteraction.type === 'create') {
+        if (!currentInteraction.hasDragged) {
+          setInteraction(null);
+          return;
+        }
+
         const startMinute = Math.min(currentInteraction.startMinute, currentInteraction.currentMinute);
         const endMinute = Math.max(currentInteraction.startMinute, currentInteraction.currentMinute);
         const normalized = clampToTimeline(startMinute, endMinute);
@@ -410,6 +450,30 @@ export function TimelineView({
                     <span>{metrics.actualHours}h</span>
                     <span>{metrics.reworkCount > 0 ? `返工 ${metrics.reworkCount}` : '未返工'}</span>
                   </div>
+                  <button
+                    type="button"
+                    className="palette-inline-action"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const startMinute = findAvailableStartMinute(selectedDate);
+                      if (startMinute === undefined) {
+                        return;
+                      }
+                      const createdId = onCreateBlock({
+                        date: selectedDate,
+                        startMinute,
+                        endMinute: startMinute + 60,
+                        source: 'manual',
+                        taskId: task.id
+                      });
+                      if (createdId) {
+                        onSelectTask(task.id);
+                        onSelectBlock(createdId);
+                      }
+                    }}
+                  >
+                    加入当天
+                  </button>
                 </div>
               );
             })}
@@ -508,8 +572,10 @@ export function TimelineView({
                         date,
                         rectTop: rect.top,
                         rectHeight: rect.height,
+                        originClientY: event.clientY,
+                        hasDragged: false,
                         startMinute: minute,
-                        currentMinute: minute + MIN_BLOCK
+                        currentMinute: minute
                       });
                     }}
                     onDragOver={(event) => {
@@ -643,6 +709,9 @@ export function TimelineView({
                           conflictSet.has(preview.id) ? 'conflict' : ''
                         }`}
                         data-block-card="true"
+                        ref={(node) => {
+                          blockRefs.current[preview.id] = node;
+                        }}
                           style={{
                             top,
                             height,
@@ -708,7 +777,10 @@ export function TimelineView({
                               <span className="block-type-dot" />
                               <span>{workTypeLabel[preview.workType]}</span>
                             </div>
-                            <span>{minuteToLabel(preview.startMinute)} - {minuteToLabel(preview.endMinute)}</span>
+                            <span>
+                              {minuteToLabel(preview.startMinute)} - {minuteToLabel(preview.endMinute)}
+                            </span>
+                            <span className="duration-chip">{minutesToHours(preview.durationMinutes)}</span>
                           </button>
                           <button
                             type="button"
@@ -739,7 +811,7 @@ export function TimelineView({
                       );
                     })}
 
-                    {interaction?.type === 'create' && interaction.date === date ? (
+                    {interaction?.type === 'create' && interaction.date === date && interaction.hasDragged ? (
                       <div
                         className="draft-block"
                         style={{
@@ -766,7 +838,12 @@ export function TimelineView({
                             ? tasksById.get(taskDropPreview.itemId)?.title ?? '任务'
                             : state.nonTaskItems.find((item) => item.id === taskDropPreview.itemId)?.name ?? '其他事项'}
                         </strong>
-                        <span>{minuteToLabel(taskDropPreview.startMinute)} - {minuteToLabel(taskDropPreview.endMinute)}</span>
+                        <span>
+                          {minuteToLabel(taskDropPreview.startMinute)} - {minuteToLabel(taskDropPreview.endMinute)}
+                        </span>
+                        <span className="duration-chip">
+                          {minutesToHours(taskDropPreview.endMinute - taskDropPreview.startMinute)}
+                        </span>
                       </div>
                     ) : null}
 
@@ -780,7 +857,10 @@ export function TimelineView({
                         }}
                       >
                         <strong>{tasksById.get(movingPreview.taskId ?? '')?.title ?? movingPreview.summary}</strong>
-                        <span>{minuteToLabel(movingPreview.startMinute)} - {minuteToLabel(movingPreview.endMinute)}</span>
+                        <span>
+                          {minuteToLabel(movingPreview.startMinute)} - {minuteToLabel(movingPreview.endMinute)}
+                        </span>
+                        <span className="duration-chip">{minutesToHours(movingPreview.durationMinutes)}</span>
                       </div>
                     ) : null}
                   </div>
@@ -791,8 +871,27 @@ export function TimelineView({
         </div>
 
         {selectedBlock ? (
-          <aside className="panel-card inspector-card">
-            <div className="card-header"><h3>编辑</h3></div>
+          <>
+            <button
+              type="button"
+              className="inspector-backdrop"
+              aria-label="关闭编辑面板"
+              onClick={() => onSelectBlock(undefined)}
+            />
+            <aside
+              className="panel-card inspector-card"
+            >
+            <div className="card-header">
+              <h3>编辑</h3>
+              <button
+                type="button"
+                className="icon-button inspector-close-button"
+                aria-label="关闭编辑面板"
+                onClick={() => onSelectBlock(undefined)}
+              >
+                ×
+              </button>
+            </div>
             <div className="editor-form">
               <label>
                 项目
@@ -974,7 +1073,8 @@ export function TimelineView({
                 删除时间块
               </button>
             </div>
-          </aside>
+            </aside>
+          </>
         ) : null}
       </div>
     </section>

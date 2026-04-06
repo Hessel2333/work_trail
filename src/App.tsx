@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnalyticsView } from './components/AnalyticsView';
 import { DashboardView } from './components/DashboardView';
 import { TaskBoardView } from './components/TaskBoardView';
@@ -84,6 +84,8 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(state.tasks[0]?.id);
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>(undefined);
   const [notice, setNotice] = useState<{ tone: NoticeTone; text: string } | null>(null);
+  const undoStackRef = useRef<AppState[]>([]);
+  const [undoCount, setUndoCount] = useState(0);
 
   const currentUser = useMemo(
     () => state.employees.find((employee) => employee.id === state.currentUserId)!,
@@ -119,7 +121,29 @@ export default function App() {
   }, [notice]);
 
   function mutateState(updater: (current: AppState) => AppState) {
-    setState((current) => withSnapshots(updater(current)));
+    setState((current) => {
+      const next = updater(current);
+      if (next === current) {
+        return current;
+      }
+
+      undoStackRef.current = [current, ...undoStackRef.current].slice(0, 20);
+      setUndoCount(undoStackRef.current.length);
+      return withSnapshots(next);
+    });
+  }
+
+  function undoLastMutation() {
+    const [previous, ...rest] = undoStackRef.current;
+    if (!previous) {
+      return;
+    }
+
+    undoStackRef.current = rest;
+    setUndoCount(rest.length);
+    setState(previous);
+    setSelectedBlockId(undefined);
+    setNotice({ tone: 'info', text: '已撤销上一步操作。' });
   }
 
   function showNotice(text: string, tone: NoticeTone = 'error') {
@@ -506,6 +530,7 @@ export default function App() {
             <button
               key={item.id}
               className={`nav-item ${activeView === item.id ? 'active' : ''}`}
+              aria-pressed={activeView === item.id}
               onClick={() => setActiveView(item.id)}
             >
               <strong>{item.label}</strong>
@@ -539,10 +564,18 @@ export default function App() {
             <div className="toolbar-inline-controls" aria-label="日程控制">
               <div className="toolbar-month-chip">{toolbarMonthLabel}</div>
               <div className="segmented-control">
-                <button className={timelineMode === 'day' ? 'active' : ''} onClick={() => setTimelineMode('day')}>
+                <button
+                  className={timelineMode === 'day' ? 'active' : ''}
+                  aria-pressed={timelineMode === 'day'}
+                  onClick={() => setTimelineMode('day')}
+                >
                   日视图
                 </button>
-                <button className={timelineMode === 'week' ? 'active' : ''} onClick={() => setTimelineMode('week')}>
+                <button
+                  className={timelineMode === 'week' ? 'active' : ''}
+                  aria-pressed={timelineMode === 'week'}
+                  onClick={() => setTimelineMode('week')}
+                >
                   周视图
                 </button>
               </div>
@@ -563,6 +596,9 @@ export default function App() {
                   →
                 </button>
               </div>
+              <button className="secondary-button" disabled={undoCount === 0} onClick={undoLastMutation}>
+                撤销
+              </button>
               <button className="secondary-button" onClick={() => copyPreviousDay(selectedDate)}>
                 复制昨日
               </button>
@@ -577,7 +613,7 @@ export default function App() {
                 disabled={selectedDateBlockCount === 0}
                 onClick={() => clearSelectedDateBlocks(selectedDate)}
               >
-                删除当日日程
+                删除当日
               </button>
             </div>
           ) : null}
@@ -623,6 +659,19 @@ export default function App() {
           {activeView === 'analytics' ? <AnalyticsView state={state} selectedDate={selectedDate} /> : null}
         </main>
       </section>
+
+      <nav className="mobile-nav" aria-label="主要导航">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            className={`mobile-nav-item ${activeView === item.id ? 'active' : ''}`}
+            aria-pressed={activeView === item.id}
+            onClick={() => setActiveView(item.id)}
+          >
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

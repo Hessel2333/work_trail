@@ -7,7 +7,7 @@ import {
   getContextSwitchScore,
   summarizeTask
 } from '../lib/analytics';
-import { blockReasonLabel, reworkReasonLabel, workTypeColor, workTypeLabel } from '../lib/labels';
+import { blockReasonLabel, reworkReasonLabel, riskLevelLabel, workTypeColor, workTypeLabel } from '../lib/labels';
 import { formatCalendarHeaderDate, getWeekDates, minuteToLabel, minutesToHours, shiftDate } from '../lib/time';
 
 const MANAGER_TIMELINE_START = 7 * 60;
@@ -100,18 +100,34 @@ export function AnalyticsView({ state, selectedDate }: AnalyticsViewProps) {
           </div>
           <div className="manager-view-controls">
             <div className="segmented-control">
-              <button className={managerMode === 'week' ? 'active' : ''} onClick={() => setManagerMode('week')}>
+              <button
+                className={managerMode === 'week' ? 'active' : ''}
+                aria-pressed={managerMode === 'week'}
+                onClick={() => setManagerMode('week')}
+              >
                 周
               </button>
-              <button className={managerMode === 'day' ? 'active' : ''} onClick={() => setManagerMode('day')}>
+              <button
+                className={managerMode === 'day' ? 'active' : ''}
+                aria-pressed={managerMode === 'day'}
+                onClick={() => setManagerMode('day')}
+              >
                 日
               </button>
             </div>
             <div className="segmented-control">
-              <button className={managerColorMode === 'project' ? 'active' : ''} onClick={() => setManagerColorMode('project')}>
+              <button
+                className={managerColorMode === 'project' ? 'active' : ''}
+                aria-pressed={managerColorMode === 'project'}
+                onClick={() => setManagerColorMode('project')}
+              >
                 按项目
               </button>
-              <button className={managerColorMode === 'task' ? 'active' : ''} onClick={() => setManagerColorMode('task')}>
+              <button
+                className={managerColorMode === 'task' ? 'active' : ''}
+                aria-pressed={managerColorMode === 'task'}
+                onClick={() => setManagerColorMode('task')}
+              >
                 按任务
               </button>
             </div>
@@ -284,7 +300,7 @@ export function AnalyticsView({ state, selectedDate }: AnalyticsViewProps) {
                     className="load-bar-fill"
                     style={{
                       width: `${Math.min(100, project.hours * 10)}%`,
-                      background: `linear-gradient(90deg, ${project.color}, ${project.color})`
+                      background: project.color
                     }}
                   />
                 </div>
@@ -308,7 +324,7 @@ export function AnalyticsView({ state, selectedDate }: AnalyticsViewProps) {
                     className="load-bar-fill alt"
                     style={{
                       width: `${Math.min(100, item.hours * 12)}%`,
-                      background: `linear-gradient(90deg, ${workTypeColor[item.type]}, ${workTypeColor[item.type]})`
+                      background: workTypeColor[item.type]
                     }}
                   />
                 </div>
@@ -400,7 +416,9 @@ export function AnalyticsView({ state, selectedDate }: AnalyticsViewProps) {
                     h
                   </p>
                 </div>
-                <span className={`risk-badge risk-${item.snapshot?.riskLevel}`}>{item.snapshot?.riskLevel}</span>
+                <span className={`risk-badge risk-${item.snapshot?.riskLevel}`}>
+                  {item.snapshot ? riskLevelLabel[item.snapshot.riskLevel] : '风险'}
+                </span>
               </div>
             ))}
           </div>
