@@ -47,6 +47,9 @@ type InteractionState =
       rectTop: number;
       rectHeight: number;
       duration: number;
+      originClientX: number;
+      originClientY: number;
+      hasDragged: boolean;
       grabOffset: number;
       nextStart: number;
     }
@@ -117,6 +120,8 @@ export function TimelineView({
   onCopyPreviousDay,
   onCopyPreviousWeek
 }: TimelineViewProps) {
+  const closeTimerRef = useRef<number | null>(null);
+  const suppressBlockClickUntilRef = useRef(0);
   const [interaction, setInteraction] = useState<InteractionState | null>(null);
   const [draggingPaletteItem, setDraggingPaletteItem] = useState<{ kind: 'task' | 'nonTask'; id: string } | null>(null);
   const [taskDropPreview, setTaskDropPreview] = useState<{
@@ -126,6 +131,8 @@ export function TimelineView({
     startMinute: number;
     endMinute: number;
   } | null>(null);
+  const [renderedSelectedBlock, setRenderedSelectedBlock] = useState<TimeBlock | undefined>(undefined);
+  const [isInspectorClosing, setIsInspectorClosing] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const currentTimeRef = useRef<HTMLDivElement | null>(null);
   const dragPreviewRef = useRef<HTMLElement | null>(null);
@@ -146,7 +153,7 @@ export function TimelineView({
   );
 
   const movingPreview = useMemo(() => {
-    if (!interaction || interaction.type !== 'move') {
+    if (!interaction || interaction.type !== 'move' || !interaction.hasDragged) {
       return undefined;
     }
 
@@ -234,6 +241,50 @@ export function TimelineView({
   }, []);
 
   useEffect(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    if (selectedBlock) {
+      setRenderedSelectedBlock(selectedBlock);
+      setIsInspectorClosing(false);
+      return;
+    }
+
+    if (!renderedSelectedBlock) {
+      return;
+    }
+
+    setIsInspectorClosing(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      setRenderedSelectedBlock(undefined);
+      setIsInspectorClosing(false);
+      closeTimerRef.current = null;
+    }, 220);
+  }, [renderedSelectedBlock, selectedBlock]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  function requestInspectorClose() {
+    if (isInspectorClosing) {
+      return;
+    }
+
+    onSelectBlock(undefined);
+  }
+
+  function suppressNextBlockClick() {
+    suppressBlockClickUntilRef.current = performance.now() + 280;
+  }
+
+  useEffect(() => {
     function clearTaskDropPreview() {
       setDraggingPaletteItem(null);
       setTaskDropPreview(null);
@@ -255,7 +306,7 @@ export function TimelineView({
     const cursorClass =
       interaction?.type === 'resize-start' || interaction?.type === 'resize-end'
         ? 'cursor-resize'
-        : interaction?.type === 'move'
+        : interaction?.type === 'move' && interaction.hasDragged
           ? 'cursor-move'
           : null;
 
@@ -285,14 +336,19 @@ export function TimelineView({
           return { ...current, currentMinute: minute, hasDragged };
         }
         if (current.type === 'move') {
+          const hasDragged =
+            current.hasDragged ||
+            Math.abs(event.clientY - current.originClientY) >= 4 ||
+            Math.abs(event.clientX - current.originClientX) >= 4;
           const hoveredDate =
             (document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null)
               ?.closest<HTMLElement>('[data-day-column-body="true"]')
               ?.dataset.date ?? current.date;
           return {
             ...current,
+            hasDragged,
             date: hoveredDate,
-            nextStart: minute - current.grabOffset
+            nextStart: hasDragged ? minute - current.grabOffset : current.nextStart
           };
         }
         return {
@@ -329,6 +385,11 @@ export function TimelineView({
       }
 
       if (currentInteraction.type === 'move') {
+        if (!currentInteraction.hasDragged) {
+          setInteraction(null);
+          return;
+        }
+
         const block = currentUserBlocks.find((item) => item.id === currentInteraction.blockId);
         if (block) {
           const normalized = clampToTimeline(
@@ -342,7 +403,7 @@ export function TimelineView({
             date: currentInteraction.date,
             source: block.source
           });
-          onSelectBlock(block.id);
+          suppressNextBlockClick();
         }
       }
 
@@ -363,7 +424,7 @@ export function TimelineView({
             endMinute: normalized.endMinute,
             durationMinutes: calculateDurationMinutes(normalized.startMinute, normalized.endMinute)
           });
-          onSelectBlock(block.id);
+          suppressNextBlockClick();
         }
       }
 
@@ -704,7 +765,9 @@ export function TimelineView({
                       <div
                         key={preview.id}
                         className={`timeline-block ${isSelected ? 'selected' : ''} ${
-                          interaction?.type === 'move' && interaction.blockId === preview.id ? 'drag-origin' : ''
+                          interaction?.type === 'move' && interaction.blockId === preview.id && interaction.hasDragged
+                            ? 'drag-origin'
+                            : ''
                         } ${
                           conflictSet.has(preview.id) ? 'conflict' : ''
                         }`}
@@ -720,6 +783,9 @@ export function TimelineView({
                           }}
                           onClick={(event) => {
                             event.stopPropagation();
+                            if (performance.now() < suppressBlockClickUntilRef.current) {
+                              return;
+                            }
                             onSelectBlock(preview.id);
                           }}
                         >
@@ -767,6 +833,9 @@ export function TimelineView({
                                 rectTop: rect.top,
                                 rectHeight: rect.height,
                                 duration: preview.durationMinutes,
+                                originClientX: event.clientX,
+                                originClientY: event.clientY,
+                                hasDragged: false,
                                 grabOffset: pointerMinute - preview.startMinute,
                                 nextStart: preview.startMinute
                               });
@@ -830,7 +899,13 @@ export function TimelineView({
                         className="task-drop-preview"
                         style={{
                           top: ((taskDropPreview.startMinute - TIMELINE_START) / 30) * SLOT_HEIGHT,
-                          height: ((taskDropPreview.endMinute - taskDropPreview.startMinute) / 30) * SLOT_HEIGHT
+                          height: ((taskDropPreview.endMinute - taskDropPreview.startMinute) / 30) * SLOT_HEIGHT,
+                          ['--block-color' as string]:
+                            taskDropPreview.kind === 'task'
+                              ? projectsById.get(tasksById.get(taskDropPreview.itemId)?.projectId ?? '')?.color ?? '#0071e3'
+                              : projectsById.get(
+                                  state.nonTaskItems.find((item) => item.id === taskDropPreview.itemId)?.projectId ?? ''
+                                )?.color ?? '#0071e3'
                         }}
                       >
                         <strong>
@@ -853,10 +928,15 @@ export function TimelineView({
                         style={{
                           top: ((movingPreview.startMinute - TIMELINE_START) / 30) * SLOT_HEIGHT,
                           height: (movingPreview.durationMinutes / 30) * SLOT_HEIGHT,
-                          ['--block-color' as string]: projectsById.get(movingPreview.projectId)?.color ?? '#0071e3'
+                          ['--block-color' as string]: projectsById.get(movingPreview.projectId)?.color ?? '#0071e3',
+                          ['--work-type-color' as string]: workTypeColor[movingPreview.workType]
                         }}
                       >
                         <strong>{tasksById.get(movingPreview.taskId ?? '')?.title ?? movingPreview.summary}</strong>
+                        <div className="block-type-row">
+                          <span className="block-type-dot" />
+                          <span>{workTypeLabel[movingPreview.workType]}</span>
+                        </div>
                         <span>
                           {minuteToLabel(movingPreview.startMinute)} - {minuteToLabel(movingPreview.endMinute)}
                         </span>
@@ -870,16 +950,16 @@ export function TimelineView({
           </div>
         </div>
 
-        {selectedBlock ? (
+        {renderedSelectedBlock ? (
           <>
             <button
               type="button"
-              className="inspector-backdrop"
+              className={`inspector-backdrop ${isInspectorClosing ? 'is-closing' : ''}`}
               aria-label="关闭编辑面板"
-              onClick={() => onSelectBlock(undefined)}
+              onClick={requestInspectorClose}
             />
             <aside
-              className="panel-card inspector-card"
+              className={`panel-card inspector-card ${isInspectorClosing ? 'is-closing' : ''}`}
             >
             <div className="card-header">
               <h3>编辑</h3>
@@ -887,7 +967,7 @@ export function TimelineView({
                 type="button"
                 className="icon-button inspector-close-button"
                 aria-label="关闭编辑面板"
-                onClick={() => onSelectBlock(undefined)}
+                onClick={requestInspectorClose}
               >
                 ×
               </button>
@@ -896,9 +976,9 @@ export function TimelineView({
               <label>
                 项目
                 <select
-                  value={selectedBlock.projectId}
+                  value={renderedSelectedBlock.projectId}
                   onChange={(event) => {
-                    onUpdateBlock(selectedBlock.id, {
+                    onUpdateBlock(renderedSelectedBlock.id, {
                       projectId: event.target.value,
                       taskId: undefined,
                       nonTaskItemId: undefined
@@ -915,21 +995,21 @@ export function TimelineView({
               <label>
                 关联任务
                 <select
-                  value={selectedBlock.taskId ?? ''}
+                  value={renderedSelectedBlock.taskId ?? ''}
                   onChange={(event) => {
                     const nextTaskId = event.target.value || undefined;
                     const task = nextTaskId ? state.tasks.find((item) => item.id === nextTaskId) : undefined;
-                    onUpdateBlock(selectedBlock.id, {
+                    onUpdateBlock(renderedSelectedBlock.id, {
                       taskId: nextTaskId,
                       nonTaskItemId: undefined,
-                      projectId: task?.projectId ?? selectedBlock.projectId,
+                      projectId: task?.projectId ?? renderedSelectedBlock.projectId,
                       moduleId: task?.moduleId
                     });
                   }}
                 >
                   <option value="">不绑定任务</option>
                   {state.tasks
-                    .filter((task) => task.projectId === selectedBlock.projectId)
+                    .filter((task) => task.projectId === renderedSelectedBlock.projectId)
                     .map((task) => (
                       <option key={task.id} value={task.id}>
                         {task.title}
@@ -940,16 +1020,16 @@ export function TimelineView({
               <label>
                 非任务工作
                 <select
-                  value={selectedBlock.nonTaskItemId ?? ''}
+                  value={renderedSelectedBlock.nonTaskItemId ?? ''}
                   onChange={(event) =>
-                    onUpdateBlock(selectedBlock.id, {
+                    onUpdateBlock(renderedSelectedBlock.id, {
                       nonTaskItemId: event.target.value || undefined,
                       taskId: undefined
                     })
                   }
                 >
                   <option value="">不使用</option>
-                  {(nonTaskItemsByProject.get(selectedBlock.projectId) ?? []).map((item) => (
+                  {(nonTaskItemsByProject.get(renderedSelectedBlock.projectId) ?? []).map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
@@ -959,9 +1039,9 @@ export function TimelineView({
               <label>
                 工作类型
                 <select
-                  value={selectedBlock.workType}
+                  value={renderedSelectedBlock.workType}
                   onChange={(event) =>
-                    onUpdateBlock(selectedBlock.id, {
+                    onUpdateBlock(renderedSelectedBlock.id, {
                       workType: event.target.value as WorkType
                     })
                   }
@@ -977,8 +1057,8 @@ export function TimelineView({
                 摘要
                 <textarea
                   rows={3}
-                  value={selectedBlock.summary}
-                  onChange={(event) => onUpdateBlock(selectedBlock.id, { summary: event.target.value })}
+                  value={renderedSelectedBlock.summary}
+                  onChange={(event) => onUpdateBlock(renderedSelectedBlock.id, { summary: event.target.value })}
                 />
               </label>
 
@@ -986,12 +1066,12 @@ export function TimelineView({
                 <label className="checkbox-row">
                   <input
                     type="checkbox"
-                    checked={selectedBlock.isRework}
+                    checked={renderedSelectedBlock.isRework}
                     onChange={(event) =>
-                      onUpdateBlock(selectedBlock.id, {
+                      onUpdateBlock(renderedSelectedBlock.id, {
                         isRework: event.target.checked,
                         reworkReason: event.target.checked
-                          ? selectedBlock.reworkReason ?? 'requirements_change'
+                          ? renderedSelectedBlock.reworkReason ?? 'requirements_change'
                           : undefined
                       })
                     }
@@ -1001,11 +1081,11 @@ export function TimelineView({
                 <label className="checkbox-row">
                   <input
                     type="checkbox"
-                    checked={selectedBlock.isBlocked}
+                    checked={renderedSelectedBlock.isBlocked}
                     onChange={(event) =>
-                      onUpdateBlock(selectedBlock.id, {
+                      onUpdateBlock(renderedSelectedBlock.id, {
                         isBlocked: event.target.checked,
-                        blockReason: event.target.checked ? selectedBlock.blockReason ?? 'waiting_feedback' : undefined
+                        blockReason: event.target.checked ? renderedSelectedBlock.blockReason ?? 'waiting_feedback' : undefined
                       })
                     }
                   />
@@ -1014,20 +1094,20 @@ export function TimelineView({
                 <label className="checkbox-row">
                   <input
                     type="checkbox"
-                    checked={selectedBlock.isOvertime}
-                    onChange={(event) => onUpdateBlock(selectedBlock.id, { isOvertime: event.target.checked })}
+                    checked={renderedSelectedBlock.isOvertime}
+                    onChange={(event) => onUpdateBlock(renderedSelectedBlock.id, { isOvertime: event.target.checked })}
                   />
                   加班
                 </label>
               </div>
 
-              {selectedBlock.isRework ? (
+              {renderedSelectedBlock.isRework ? (
                 <label>
                   返工原因
                   <select
-                    value={selectedBlock.reworkReason ?? 'requirements_change'}
+                    value={renderedSelectedBlock.reworkReason ?? 'requirements_change'}
                     onChange={(event) =>
-                      onUpdateBlock(selectedBlock.id, {
+                      onUpdateBlock(renderedSelectedBlock.id, {
                         reworkReason: event.target.value as TimeBlock['reworkReason']
                       })
                     }
@@ -1041,13 +1121,13 @@ export function TimelineView({
                 </label>
               ) : null}
 
-              {selectedBlock.isBlocked ? (
+              {renderedSelectedBlock.isBlocked ? (
                 <label>
                   阻塞原因
                   <select
-                    value={selectedBlock.blockReason ?? 'waiting_feedback'}
+                    value={renderedSelectedBlock.blockReason ?? 'waiting_feedback'}
                     onChange={(event) =>
-                      onUpdateBlock(selectedBlock.id, {
+                      onUpdateBlock(renderedSelectedBlock.id, {
                         blockReason: event.target.value as TimeBlock['blockReason']
                       })
                     }
@@ -1063,13 +1143,13 @@ export function TimelineView({
 
               <div className="editor-meta">
                 <span>
-                  {selectedBlock.date}
+                  {renderedSelectedBlock.date}
                   {' · '}
-                  {minuteToLabel(selectedBlock.startMinute)} - {minuteToLabel(selectedBlock.endMinute)}
+                  {minuteToLabel(renderedSelectedBlock.startMinute)} - {minuteToLabel(renderedSelectedBlock.endMinute)}
                 </span>
-                <span>{entrySourceLabel[selectedBlock.source]}</span>
+                <span>{entrySourceLabel[renderedSelectedBlock.source]}</span>
               </div>
-              <button className="danger-button" onClick={() => onDeleteBlock(selectedBlock.id)}>
+              <button className="danger-button" onClick={() => onDeleteBlock(renderedSelectedBlock.id)}>
                 删除时间块
               </button>
             </div>
