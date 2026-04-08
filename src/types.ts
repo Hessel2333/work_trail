@@ -1,5 +1,6 @@
 export type Role = 'employee' | 'pm' | 'manager' | 'admin';
 export type ThemePreference = 'light' | 'dark' | 'system';
+export type ProjectPhase = 'discussion' | 'brainstorm' | 'development' | 'implementation' | 'debugging';
 
 export type TaskStatus =
   | 'todo'
@@ -62,6 +63,7 @@ export interface Project {
   code: string;
   color: string;
   category: 'enterprise' | 'agile' | 'incubation';
+  phase: ProjectPhase;
   billable: boolean;
   health: 'healthy' | 'attention' | 'risk';
 }

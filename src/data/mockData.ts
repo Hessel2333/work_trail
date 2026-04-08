@@ -27,6 +27,7 @@ const projects = [
     code: 'ERP-26',
     color: '#c96442',
     category: 'enterprise',
+    phase: 'implementation',
     billable: true,
     health: 'attention'
   },
@@ -36,6 +37,7 @@ const projects = [
     code: 'SPR-9',
     color: '#7c8f62',
     category: 'agile',
+    phase: 'development',
     billable: true,
     health: 'healthy'
   },
@@ -45,6 +47,7 @@ const projects = [
     code: 'APP-3',
     color: '#6a7ca8',
     category: 'incubation',
+    phase: 'brainstorm',
     billable: false,
     health: 'risk'
   }

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnalyticsView } from './components/AnalyticsView';
 import { DashboardView } from './components/DashboardView';
+import { GuideView } from './components/GuideView';
+import { ProjectsView } from './components/ProjectsView';
 import { TaskBoardView } from './components/TaskBoardView';
 import { TimelineView } from './components/TimelineView';
 import { initialState } from './data/mockData';
@@ -11,6 +13,10 @@ import type {
   AppState,
   BlockRecord,
   DraftTimeBlock,
+  Employee,
+  Module,
+  Project,
+  ProjectPhase,
   ReworkRecord,
   Task,
   TaskStatus,
@@ -20,15 +26,17 @@ import type {
 } from './types';
 import './styles.css';
 
-type ActiveView = 'dashboard' | 'timeline' | 'tasks' | 'analytics';
+type ActiveView = 'dashboard' | 'timeline' | 'projects' | 'tasks' | 'analytics' | 'guide';
 type TimelineMode = 'day' | 'week';
 type NoticeTone = 'info' | 'error';
 
 const navItems: Array<{ id: ActiveView; label: string }> = [
   { id: 'dashboard', label: '工作台' },
   { id: 'timeline', label: '日程' },
+  { id: 'projects', label: '项目' },
   { id: 'tasks', label: '任务' },
-  { id: 'analytics', label: '统计' }
+  { id: 'analytics', label: '统计' },
+  { id: 'guide', label: '说明' }
 ];
 
 const themeItems: Array<{ id: ThemePreference; label: string }> = [
@@ -40,8 +48,17 @@ const themeItems: Array<{ id: ThemePreference; label: string }> = [
 const viewMeta: Record<ActiveView, { title: string; subtitle: string }> = {
   dashboard: { title: '工作台', subtitle: '总览' },
   timeline: { title: '日程', subtitle: '时间轴录入' },
+  projects: { title: '项目', subtitle: '项目池与阶段维护' },
   tasks: { title: '任务', subtitle: '分发与流转' },
-  analytics: { title: '统计', subtitle: '执行分析' }
+  analytics: { title: '统计', subtitle: '执行分析' },
+  guide: { title: '说明', subtitle: '系统逻辑与上手指南' }
+};
+
+const roleLabel: Record<Employee['role'], string> = {
+  employee: '研发视角',
+  pm: '产品视角',
+  manager: '主管视角',
+  admin: '管理视角'
 };
 
 function getDefaultProjectId(state: AppState) {
@@ -118,6 +135,21 @@ export default function App() {
     [selectedDate]
   );
   const resolvedTheme = themePreference === 'system' ? (prefersDark ? 'dark' : 'light') : themePreference;
+  const resolvedViewMeta = useMemo(() => {
+    if (activeView !== 'tasks') {
+      return viewMeta[activeView];
+    }
+
+    if (currentUser.role === 'manager' || currentUser.role === 'admin') {
+      return { title: '任务', subtitle: '项目与任务分发' };
+    }
+
+    if (currentUser.role === 'pm') {
+      return { title: '任务', subtitle: '需求与协作推进' };
+    }
+
+    return { title: '任务', subtitle: '我的任务与排期' };
+  }, [activeView, currentUser.role]);
 
   useEffect(() => {
     saveState(state);
@@ -182,6 +214,27 @@ export default function App() {
 
   function showNotice(text: string, tone: NoticeTone = 'error') {
     setNotice({ tone, text });
+  }
+
+  function switchCurrentUser(userId: string) {
+    setState((current) => {
+      if (current.currentUserId === userId) {
+        return current;
+      }
+
+      return {
+        ...current,
+        currentUserId: userId
+      };
+    });
+    setSelectedBlockId(undefined);
+    setSelectedTaskId((current) => {
+      if (current && state.tasks.some((task) => task.id === current && task.assigneeId === userId)) {
+        return current;
+      }
+
+      return state.tasks.find((task) => task.assigneeId === userId)?.id ?? state.tasks[0]?.id;
+    });
   }
 
   function createBlock(draft: DraftTimeBlock) {
@@ -353,16 +406,19 @@ export default function App() {
     taskType: Task['taskType'];
     moduleId?: string;
     description: string;
+    dispatcherId?: string;
+    stayOnCurrentView?: boolean;
   }) {
     const now = new Date().toISOString();
     const taskId = crypto.randomUUID();
+    const moduleId = draft.moduleId ?? state.modules.find((item) => item.projectId === draft.projectId)?.id;
     const task: Task = {
       id: taskId,
       projectId: draft.projectId,
-      moduleId: draft.moduleId,
+      moduleId,
       title: draft.title,
       description: draft.description,
-      dispatcherId: currentUser.id,
+      dispatcherId: draft.dispatcherId ?? currentUser.id,
       assigneeId: draft.assigneeId,
       priority: draft.priority,
       status: 'todo',
@@ -389,7 +445,78 @@ export default function App() {
       ]
     }));
     setSelectedTaskId(taskId);
-    setActiveView('tasks');
+    if (!draft.stayOnCurrentView) {
+      setActiveView('tasks');
+    }
+    showNotice(`已创建任务「${draft.title}」。`, 'info');
+    return taskId;
+  }
+
+  function createProject(draft: {
+    name: string;
+    code: string;
+    category: Project['category'];
+    color: string;
+    phase?: ProjectPhase;
+  }) {
+    const name = draft.name.trim();
+    const code = draft.code.trim().toUpperCase();
+
+    if (!name || !code) {
+      showNotice('请先填写项目名称和项目代号。');
+      return undefined;
+    }
+
+    const duplicateCode = state.projects.some((project) => project.code.toUpperCase() === code);
+    if (duplicateCode) {
+      showNotice(`项目代号 ${code} 已存在。`);
+      return undefined;
+    }
+
+    const now = new Date().toISOString();
+    const projectId = crypto.randomUUID();
+    const moduleId = crypto.randomUUID();
+    const defaultModule: Module = {
+      id: moduleId,
+      projectId,
+      name: draft.category === 'agile' ? '当前 Sprint' : '当前阶段',
+      type: draft.category === 'agile' ? 'sprint' : 'milestone',
+      startDate: selectedDate,
+      endDate: shiftDate(selectedDate, draft.category === 'agile' ? 13 : 20)
+    };
+    const project: Project = {
+      id: projectId,
+      name,
+      code,
+      color: draft.color,
+      category: draft.category,
+      phase: draft.phase ?? 'discussion',
+      billable: draft.category !== 'incubation',
+      health: 'healthy'
+    };
+
+    mutateState((current) => ({
+      ...current,
+      projects: [project, ...current.projects],
+      modules: [defaultModule, ...current.modules]
+    }));
+
+    showNotice(`已创建项目「${name}」。`, 'info');
+    return projectId;
+  }
+
+  function updateProject(projectId: string, patch: Partial<Project>) {
+    mutateState((current) => ({
+      ...current,
+      projects: current.projects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              ...patch
+            }
+          : project
+      )
+    }));
   }
 
   function changeTaskStatus(taskId: string, status: TaskStatus) {
@@ -587,13 +714,24 @@ export default function App() {
         ))}
       </div>
 
-      <div className="profile-card floating-profile-card">
-        <div className="avatar-badge">{currentUser.avatar}</div>
-        <div>
-          <strong>{currentUser.name}</strong>
-          <p>{currentUser.title}</p>
+        <div className="profile-card floating-profile-card">
+          <div className="profile-card-head">
+            <div>
+              <strong>{currentUser.name}</strong>
+              <p>{currentUser.title}</p>
+            </div>
+          </div>
+          <div className="profile-switcher">
+            <span className="profile-switcher-label">{roleLabel[currentUser.role]}</span>
+            <select value={currentUser.id} onChange={(event) => switchCurrentUser(event.target.value)}>
+              {state.employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
 
       <section className="workspace-shell">
         <header className="main-toolbar">
@@ -604,8 +742,8 @@ export default function App() {
               <span className="traffic-light expand" />
             </div>
             <div className="toolbar-title-group">
-              <strong>{viewMeta[activeView].title}</strong>
-              <span>{viewMeta[activeView].subtitle}</span>
+              <strong>{resolvedViewMeta.title}</strong>
+              <span>{resolvedViewMeta.subtitle}</span>
             </div>
           </div>
           {activeView === 'timeline' ? (
@@ -668,7 +806,7 @@ export default function App() {
         </header>
         {notice ? <div className={`top-notice ${notice.tone}`}>{notice.text}</div> : null}
 
-        <main className="main-stage">
+        <main className={`main-stage ${activeView === 'guide' ? 'guide-main-stage' : ''}`}>
           {activeView === 'dashboard' ? (
             <DashboardView
               state={state}
@@ -695,9 +833,18 @@ export default function App() {
               onCopyPreviousWeek={copyPreviousWeek}
             />
           ) : null}
+          {activeView === 'projects' ? (
+            <ProjectsView
+              state={state}
+              currentUser={currentUser}
+              onCreateProject={createProject}
+              onUpdateProject={updateProject}
+            />
+          ) : null}
           {activeView === 'tasks' ? (
             <TaskBoardView
               state={state}
+              currentUser={currentUser}
               selectedTaskId={selectedTaskId}
               onSelectTask={setSelectedTaskId}
               onStatusChange={changeTaskStatus}
@@ -705,6 +852,7 @@ export default function App() {
             />
           ) : null}
           {activeView === 'analytics' ? <AnalyticsView state={state} selectedDate={selectedDate} /> : null}
+          {activeView === 'guide' ? <GuideView state={state} selectedDate={selectedDate} /> : null}
         </main>
       </section>
 
