@@ -22,6 +22,7 @@ import type {
   TaskStatus,
   ThemePreference,
   TimeBlock,
+  WorkItemAction,
   WorkType
 } from './types';
 import './styles.css';
@@ -141,14 +142,14 @@ export default function App() {
     }
 
     if (currentUser.role === 'manager' || currentUser.role === 'admin') {
-      return { title: '任务', subtitle: '项目与任务分发' };
+      return { title: '任务', subtitle: '工作项分发与流转' };
     }
 
     if (currentUser.role === 'pm') {
-      return { title: '任务', subtitle: '需求与协作推进' };
+      return { title: '任务', subtitle: '工作项协作与推进' };
     }
 
-    return { title: '任务', subtitle: '我的任务与排期' };
+    return { title: '任务', subtitle: '我的工作项与排期' };
   }, [activeView, currentUser.role]);
 
   useEffect(() => {
@@ -448,7 +449,7 @@ export default function App() {
     if (!draft.stayOnCurrentView) {
       setActiveView('tasks');
     }
-    showNotice(`已创建任务「${draft.title}」。`, 'info');
+    showNotice(`已创建工作项「${draft.title}」。`, 'info');
     return taskId;
   }
 
@@ -574,6 +575,23 @@ export default function App() {
         reworkRecords
       };
     });
+  }
+
+  function applyWorkItemAction(taskId: string, action: WorkItemAction) {
+    if (action === 'mark_done') {
+      changeTaskStatus(taskId, 'done');
+      showNotice('已将工作项标记为完成。', 'info');
+      return;
+    }
+
+    if (action === 'mark_blocked') {
+      changeTaskStatus(taskId, 'blocked');
+      showNotice('已将工作项标记为阻塞。', 'info');
+      return;
+    }
+
+    changeTaskStatus(taskId, 'in_progress');
+    showNotice('已重开工作项，并恢复为进行中。', 'info');
   }
 
   function copyPreviousDay(date: string) {
@@ -848,6 +866,7 @@ export default function App() {
               selectedTaskId={selectedTaskId}
               onSelectTask={setSelectedTaskId}
               onStatusChange={changeTaskStatus}
+              onApplyAction={applyWorkItemAction}
               onCreateTask={createTask}
             />
           ) : null}

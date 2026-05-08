@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { EChartsOption } from 'echarts';
 import type { AppState, Task } from '../types';
+import { EChartSurface } from './EChartSurface';
 import {
   buildWeeklyLoad,
   countReasonDistribution,
@@ -13,6 +15,8 @@ import { formatCalendarHeaderDate, getWeekDates, minuteToLabel, minutesToHours, 
 const MANAGER_TIMELINE_START = 7 * 60;
 const MANAGER_TIMELINE_END = 22 * 60;
 const TASK_COLOR_PALETTE = ['#007aff', '#30b0c7', '#34c759', '#5e5ce6', '#ff9500', '#ff2d55', '#8e8e93', '#bf5af2'];
+const AXIS_TEXT = '#8c8c91';
+const GRID_LINE = 'rgba(120, 128, 145, 0.12)';
 
 interface AnalyticsViewProps {
   state: AppState;
@@ -89,6 +93,264 @@ export function AnalyticsView({ state, selectedDate }: AnalyticsViewProps) {
 
     return nonTaskItemsById.get(block.nonTaskItemId ?? '')?.name ?? workTypeLabel[block.workType];
   }
+
+  const overviewOption = useMemo<EChartsOption>(
+    () => ({
+      animationDuration: 260,
+      grid: { top: 14, right: 12, bottom: 8, left: 12, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: ['总工时', '延期率', '返工率', '重开率', '阻塞率'],
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 },
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: GRID_LINE } }
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: GRID_LINE } },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      tooltip: { trigger: 'axis' },
+      series: [
+        {
+          type: 'bar',
+          barWidth: 28,
+          data: [
+            { value: overview.totals.totalHours, itemStyle: { color: '#007aff', borderRadius: [10, 10, 4, 4] } },
+            { value: overview.totals.overdueRate, itemStyle: { color: '#ff9500', borderRadius: [10, 10, 4, 4] } },
+            { value: overview.totals.reworkRate, itemStyle: { color: '#ff3b30', borderRadius: [10, 10, 4, 4] } },
+            { value: overview.totals.reopenRate, itemStyle: { color: '#5e5ce6', borderRadius: [10, 10, 4, 4] } },
+            { value: overview.totals.blockedRate, itemStyle: { color: '#8e8e93', borderRadius: [10, 10, 4, 4] } }
+          ],
+          label: { show: true, position: 'top', color: '#5d606b', fontSize: 11 }
+        }
+      ]
+    }),
+    [overview]
+  );
+
+  const projectOption = useMemo<EChartsOption>(
+    () => ({
+      animationDuration: 260,
+      grid: { top: 10, right: 18, bottom: 8, left: 88, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      xAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: GRID_LINE } },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      yAxis: {
+        type: 'category',
+        data: overview.projectHours.map((project) => project.name),
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 },
+        axisTick: { show: false },
+        axisLine: { show: false }
+      },
+      series: [
+        {
+          type: 'bar',
+          barWidth: 16,
+          data: overview.projectHours.map((project) => ({
+            value: project.hours,
+            itemStyle: { color: project.color, borderRadius: 10 }
+          }))
+        }
+      ]
+    }),
+    [overview.projectHours]
+  );
+
+  const workTypeOption = useMemo<EChartsOption>(
+    () => ({
+      animationDuration: 260,
+      tooltip: { trigger: 'item' },
+      legend: {
+        bottom: 0,
+        icon: 'circle',
+        itemWidth: 8,
+        itemHeight: 8,
+        textStyle: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      series: [
+        {
+          type: 'pie',
+          radius: ['48%', '74%'],
+          center: ['50%', '44%'],
+          label: { show: true, formatter: '{d}%', color: '#5d606b', fontSize: 11 },
+          data: overview.workTypeHours.map((item) => ({
+            name: workTypeLabel[item.type],
+            value: item.hours,
+            itemStyle: { color: workTypeColor[item.type] }
+          }))
+        }
+      ]
+    }),
+    [overview.workTypeHours]
+  );
+
+  const reworkBlockOption = useMemo<EChartsOption>(() => {
+    const allReasons = Array.from(
+      new Set([...reworkDistribution.map((item) => item.reason), ...blockDistribution.map((item) => item.reason)])
+    );
+
+    return {
+      animationDuration: 260,
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: {
+        top: 0,
+        textStyle: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      grid: { top: 30, right: 14, bottom: 8, left: 110, containLabel: true },
+      xAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: GRID_LINE } },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      yAxis: {
+        type: 'category',
+        data: allReasons.map((reason) =>
+          reworkReasonLabel[reason as keyof typeof reworkReasonLabel] ??
+          blockReasonLabel[reason as keyof typeof blockReasonLabel] ??
+          reason
+        ),
+        axisLabel: { color: AXIS_TEXT, fontSize: 11, overflow: 'truncate', width: 96 },
+        axisTick: { show: false },
+        axisLine: { show: false }
+      },
+      series: [
+        {
+          name: '返工',
+          type: 'bar',
+          barWidth: 12,
+          data: allReasons.map((reason) => reworkDistribution.find((item) => item.reason === reason)?.count ?? 0),
+          itemStyle: { color: '#ff3b30', borderRadius: 10 }
+        },
+        {
+          name: '阻塞',
+          type: 'bar',
+          barWidth: 12,
+          data: allReasons.map((reason) => blockDistribution.find((item) => item.reason === reason)?.count ?? 0),
+          itemStyle: { color: '#ff9500', borderRadius: 10 }
+        }
+      ]
+    };
+  }, [blockDistribution, reworkDistribution]);
+
+  const loadHeatmapOption = useMemo<EChartsOption>(() => {
+    const dates = weekDates.map((date) => formatCalendarHeaderDate(date));
+    const people = weeklyLoad.map(({ employee }) => employee.name);
+    const values = weeklyLoad.flatMap(({ employee, dailyHours }) =>
+      dailyHours.map((item, index) => [index, people.indexOf(employee.name), item.hours])
+    );
+
+    return {
+      animationDuration: 260,
+      tooltip: {
+        position: 'top'
+      },
+      grid: { top: 12, right: 16, bottom: 22, left: 64, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        splitArea: { show: false },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      yAxis: {
+        type: 'category',
+        data: people,
+        splitArea: { show: false },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      visualMap: {
+        min: 0,
+        max: 8,
+        show: false,
+        inRange: {
+          color: ['#eef2ff', '#c8d8ff', '#82b1ff', '#007aff']
+        }
+      },
+      series: [
+        {
+          type: 'heatmap',
+          data: values,
+          label: { show: true, color: '#2b2f38', fontSize: 11, formatter: ({ value }) => `${(value as number[])[2]}h` },
+          emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.12)' } }
+        }
+      ]
+    };
+  }, [weekDates, weeklyLoad]);
+
+  const switchOption = useMemo<EChartsOption>(
+    () => ({
+      animationDuration: 260,
+      grid: { top: 12, right: 16, bottom: 8, left: 68, containLabel: true },
+      xAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: GRID_LINE } },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      yAxis: {
+        type: 'category',
+        data: contextSwitches.map((item) => item.name),
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 },
+        axisTick: { show: false },
+        axisLine: { show: false }
+      },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      series: [
+        {
+          type: 'bar',
+          barWidth: 16,
+          data: contextSwitches.map((item) => ({
+            value: item.switches,
+            itemStyle: { color: '#5e5ce6', borderRadius: 10 }
+          }))
+        }
+      ]
+    }),
+    [contextSwitches]
+  );
+
+  const riskOption = useMemo<EChartsOption>(
+    () => ({
+      animationDuration: 260,
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: {
+        top: 0,
+        textStyle: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      grid: { top: 30, right: 16, bottom: 8, left: 94, containLabel: true },
+      xAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: GRID_LINE } },
+        axisLabel: { color: AXIS_TEXT, fontSize: 11 }
+      },
+      yAxis: {
+        type: 'category',
+        data: riskyTasks.map((item) => item.task.title),
+        axisLabel: { color: AXIS_TEXT, fontSize: 11, overflow: 'truncate', width: 82 },
+        axisTick: { show: false },
+        axisLine: { show: false }
+      },
+      series: [
+        {
+          name: '实际工时',
+          type: 'bar',
+          barWidth: 12,
+          data: riskyTasks.map((item) => item.metrics.actualHours),
+          itemStyle: { color: '#ff3b30', borderRadius: 10 }
+        },
+        {
+          name: '预估工时',
+          type: 'bar',
+          barWidth: 12,
+          data: riskyTasks.map((item) => item.task.estimateHours),
+          itemStyle: { color: '#8e8e93', borderRadius: 10 }
+        }
+      ]
+    }),
+    [riskyTasks]
+  );
 
   return (
     <section className="page-shell">
@@ -266,162 +528,75 @@ export function AnalyticsView({ state, selectedDate }: AnalyticsViewProps) {
         )}
       </article>
 
-      <div className="stats-grid">
-        <article className="stat-card">
-          <span>项目总工时</span>
-          <strong>{overview.totals.totalHours}h</strong>
-        </article>
-        <article className="stat-card">
-          <span>延期率</span>
-          <strong>{overview.totals.overdueRate}%</strong>
-        </article>
-        <article className="stat-card">
-          <span>返工率</span>
-          <strong>{overview.totals.reworkRate}%</strong>
-        </article>
-        <article className="stat-card">
-          <span>阻塞任务率</span>
-          <strong>{overview.totals.blockedRate}%</strong>
-        </article>
-      </div>
-
-      <div className="content-grid analytics-grid">
-        <article className="panel-card">
-          <div className="card-header"><h3>项目</h3></div>
-          <div className="chart-stack">
-            {overview.projectHours.map((project) => (
-              <div key={project.projectId} className="chart-row">
-                <div className="chart-label">
-                  <span className="color-dot" style={{ background: project.color }} />
-                  <span>{project.name}</span>
-                </div>
-                <div className="load-bar">
-                  <div
-                    className="load-bar-fill"
-                    style={{
-                      width: `${Math.min(100, project.hours * 10)}%`,
-                      background: project.color
-                    }}
-                  />
-                </div>
-                <strong>{project.hours}h</strong>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <div className="card-header"><h3>类型</h3></div>
-          <div className="chart-stack">
-            {overview.workTypeHours.map((item) => (
-              <div key={item.type} className="chart-row">
-                <div className="chart-label">
-                  <span className="color-dot" style={{ background: workTypeColor[item.type] }} />
-                  <span>{workTypeLabel[item.type]}</span>
-                </div>
-                <div className="load-bar">
-                  <div
-                    className="load-bar-fill alt"
-                    style={{
-                      width: `${Math.min(100, item.hours * 12)}%`,
-                      background: workTypeColor[item.type]
-                    }}
-                  />
-                </div>
-                <strong>{item.hours}h</strong>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <div className="card-header"><h3>返工 / 阻塞</h3></div>
-          <div className="split-panels">
+      <div className="dashboard-three-column charts-only analytics-chart-grid">
+        <article className="panel-card dashboard-panel">
+          <div className="dashboard-panel-head">
             <div>
-              <h4>返工</h4>
-              <div className="stack-list">
-                {reworkDistribution.map((item) => (
-                  <div key={item.reason} className="metric-row">
-                    <span>{reworkReasonLabel[item.reason as keyof typeof reworkReasonLabel]}</span>
-                    <strong>{item.count}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4>阻塞</h4>
-              <div className="stack-list">
-                {blockDistribution.map((item) => (
-                  <div key={item.reason} className="metric-row">
-                    <span>{blockReasonLabel[item.reason as keyof typeof blockReasonLabel]}</span>
-                    <strong>{item.count}</strong>
-                  </div>
-                ))}
-              </div>
+              <h3>总览</h3>
+              <p className="muted-copy">用图表收敛延期、返工、重开和阻塞口径。</p>
             </div>
           </div>
+          <EChartSurface option={overviewOption} height={230} ariaLabel="统计总览柱状图" />
         </article>
 
-        <article className="panel-card">
-          <div className="card-header"><h3>负载</h3></div>
-          <div className="stack-list">
-            {weeklyLoad.map(({ employee, dailyHours }) => (
-              <div key={employee.id} className="load-person-row">
-                <div className="metric-label">
-                  <strong>{employee.name}</strong>
-                  <span>{employee.title}</span>
-                </div>
-                <div className="mini-heatmap">
-                  {dailyHours.map((item) => (
-                    <div
-                      key={item.date}
-                      className="heat-cell"
-                      style={{ opacity: Math.max(0.2, item.hours / employee.capacityHoursPerDay) }}
-                    >
-                      {item.hours}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+        <article className="panel-card dashboard-panel">
+          <div className="dashboard-panel-head">
+            <div>
+              <h3>项目工时</h3>
+              <p className="muted-copy">按项目查看时间投入分布。</p>
+            </div>
           </div>
+          <EChartSurface option={projectOption} height={230} ariaLabel="项目工时条形图" />
         </article>
 
-        <article className="panel-card">
-          <div className="card-header"><h3>切换</h3></div>
-          <div className="stack-list">
-            {contextSwitches.map((item) => (
-              <div key={item.employeeId} className="metric-row">
-                <span>{item.name}</span>
-                <strong>{item.switches} 次</strong>
-              </div>
-            ))}
+        <article className="panel-card dashboard-panel">
+          <div className="dashboard-panel-head">
+            <div>
+              <h3>工作类型</h3>
+              <p className="muted-copy">按工作类型看工时组成。</p>
+            </div>
           </div>
+          <EChartSurface option={workTypeOption} height={230} ariaLabel="工作类型环图" />
         </article>
 
-        <article className="panel-card">
-          <div className="card-header"><h3>风险</h3></div>
-          <div className="stack-list">
-            {riskyTasks.map((item) => (
-              <div key={item.task.id} className="risk-row">
-                <div>
-                  <strong>{item.task.title}</strong>
-                  <p>
-                    实际
-                    {' '}
-                    {item.metrics.actualHours}
-                    h / 预估
-                    {' '}
-                    {item.task.estimateHours}
-                    h
-                  </p>
-                </div>
-                <span className={`risk-badge risk-${item.snapshot?.riskLevel}`}>
-                  {item.snapshot ? riskLevelLabel[item.snapshot.riskLevel] : '风险'}
-                </span>
-              </div>
-            ))}
+        <article className="panel-card dashboard-panel">
+          <div className="dashboard-panel-head">
+            <div>
+              <h3>返工 / 阻塞原因</h3>
+              <p className="muted-copy">避免用长列表堆叠原因分布。</p>
+            </div>
           </div>
+          <EChartSurface option={reworkBlockOption} height={260} ariaLabel="返工和阻塞原因分布图" />
+        </article>
+
+        <article className="panel-card dashboard-panel">
+          <div className="dashboard-panel-head">
+            <div>
+              <h3>团队负载</h3>
+              <p className="muted-copy">按周看成员每日负载热力分布。</p>
+            </div>
+          </div>
+          <EChartSurface option={loadHeatmapOption} height={260} ariaLabel="团队负载热力图" />
+        </article>
+
+        <article className="panel-card dashboard-panel">
+          <div className="dashboard-panel-head">
+            <div>
+              <h3>多项目切换</h3>
+              <p className="muted-copy">上下文切换次数越高，越值得关注。</p>
+            </div>
+          </div>
+          <EChartSurface option={switchOption} height={260} ariaLabel="上下文切换条形图" />
+        </article>
+
+        <article className="panel-card dashboard-panel analytics-risk-span">
+          <div className="dashboard-panel-head">
+            <div>
+              <h3>高风险工作项</h3>
+              <p className="muted-copy">用实际 / 预估双柱对比，替代冗长风险列表。</p>
+            </div>
+          </div>
+          <EChartSurface option={riskOption} height={280} ariaLabel="高风险工作项对比图" />
         </article>
       </div>
     </section>

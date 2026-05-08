@@ -16,6 +16,10 @@ export type TaskType =
   | 'research'
   | 'ops_support';
 
+export type WorkItem = Task;
+export type WorkItemStatus = TaskStatus;
+export type WorkItemAction = 'mark_done' | 'mark_blocked' | 'reopen';
+
 export type WorkType =
   | 'requirements'
   | 'product_design'

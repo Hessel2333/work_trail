@@ -471,7 +471,7 @@ export function TimelineView({
     <section className="page-shell timeline-page">
       <div className="timeline-layout">
         <aside className="panel-card tasks-sidebar">
-          <div className="card-header"><h3>任务</h3></div>
+          <div className="card-header"><h3>工作项</h3></div>
           <div className="stack-list">
             {tasks.map((task) => {
               const project = projectsById.get(task.projectId)!;
@@ -533,7 +533,7 @@ export function TimelineView({
                       }
                     }}
                   >
-                    加入当天
+                    排进当天
                   </button>
                 </div>
               );

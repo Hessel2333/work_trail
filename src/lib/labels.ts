@@ -1,4 +1,4 @@
-import type { BlockReason, EntrySource, ReworkReason, TaskStatus, TaskType, WorkType } from '../types';
+import type { BlockReason, EntrySource, ReworkReason, TaskStatus, TaskType, WorkItemAction, WorkType } from '../types';
 
 export const taskStatusLabel: Record<TaskStatus, string> = {
   todo: '待开始',
@@ -81,3 +81,9 @@ export const workTypeOptions = Object.entries(workTypeLabel);
 export const reworkReasonOptions = Object.entries(reworkReasonLabel);
 export const blockReasonOptions = Object.entries(blockReasonLabel);
 export const taskStatusOptions = Object.entries(taskStatusLabel);
+
+export const workItemActionLabel: Record<WorkItemAction, string> = {
+  mark_done: 'Done',
+  mark_blocked: 'Blocked',
+  reopen: 'Reopened'
+};

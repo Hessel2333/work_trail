@@ -39,6 +39,7 @@ const emptyDraft = {
 
 export function ProjectsView({ state, currentUser, onCreateProject, onUpdateProject }: ProjectsViewProps) {
   const [draft, setDraft] = useState(emptyDraft);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const canManageProjects = currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'pm';
   const projectMetrics = useMemo(
     () =>
@@ -59,14 +60,92 @@ export function ProjectsView({ state, currentUser, onCreateProject, onUpdateProj
 
   return (
     <section className="page-shell">
-      <div className="projects-layout">
-        {canManageProjects ? (
-          <article className="panel-card project-create-card">
+      <div className="manager-page-header panel-card">
+        <div>
+          <h2>项目列表</h2>
+          <p className="muted-copy">项目是低频对象，集中在这里维护阶段、健康度和整体进度。</p>
+        </div>
+        <div className="manager-page-meta">
+          <span className="inline-chip">{state.projects.length} 个项目</span>
+          {canManageProjects ? (
+            <button className="primary-button" onClick={() => setIsCreateOpen(true)}>
+              新建项目
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="projects-layout single-column">
+        <div className="projects-board">
+          {projectMetrics.map(({ project, progress, totalTasks, completedTasks }) => (
+            <article key={project.id} className="panel-card project-card">
+              <div className="project-card-head">
+                <div>
+                  <div className="project-card-title">
+                    <span className="inline-chip" style={{ background: `${project.color}1c`, color: project.color }}>
+                      {project.code}
+                    </span>
+                    <strong>{project.name}</strong>
+                  </div>
+                  <p className="muted-copy">
+                    {PROJECT_CATEGORY_LABEL[project.category]}
+                    {' · '}
+                    {project.billable ? '计费项目' : '内部项目'}
+                  </p>
+                </div>
+                <span className={`risk-badge risk-${project.health === 'risk' ? 'high' : project.health === 'attention' ? 'medium' : 'low'}`}>
+                  {project.health === 'healthy' ? '健康' : project.health === 'attention' ? '关注' : '风险'}
+                </span>
+              </div>
+
+              <div className="project-phase-strip">
+                {PROJECT_PHASES.map((phase) => (
+                  <button
+                    key={phase}
+                    type="button"
+                    className={`project-phase-step ${project.phase === phase ? 'active' : ''}`}
+                    disabled={!canManageProjects}
+                    onClick={() => onUpdateProject(project.id, { phase })}
+                  >
+                    {PROJECT_PHASE_LABEL[phase]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="project-card-metrics">
+                <div>
+                  <span>当前阶段</span>
+                  <strong>{PROJECT_PHASE_LABEL[project.phase]}</strong>
+                </div>
+                <div>
+                  <span>任务进度</span>
+                  <strong>{completedTasks}/{totalTasks}</strong>
+                </div>
+                <div>
+                  <span>完成率</span>
+                  <strong>{progress}%</strong>
+                </div>
+              </div>
+
+              <div className="load-bar">
+                <div className="load-bar-fill" style={{ width: `${progress}%`, background: project.color }} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      {canManageProjects && isCreateOpen ? (
+        <div className="modal-backdrop" onClick={() => setIsCreateOpen(false)}>
+          <div className="modal-card project-modal-card" onClick={(event) => event.stopPropagation()}>
             <div className="card-header">
               <div>
                 <h3>新项目</h3>
-                <p className="muted-copy">项目是低频对象，但需要集中维护和跟踪阶段。</p>
+                <p className="muted-copy">只在需要时创建，避免长期占用页面空间。</p>
               </div>
+              <button className="icon-button modal-close-button" onClick={() => setIsCreateOpen(false)} aria-label="关闭">
+                ×
+              </button>
             </div>
             <div className="manager-form-grid">
               <label className="full-span">
@@ -130,79 +209,27 @@ export function ProjectsView({ state, currentUser, onCreateProject, onUpdateProj
                 ))}
               </div>
             </div>
-            <button
-              className="primary-button full-width"
-              disabled={!draft.name.trim() || !draft.code.trim()}
-              onClick={() => {
-                const created = onCreateProject(draft);
-                if (created) {
-                  setDraft(emptyDraft);
-                }
-              }}
-            >
-              创建项目
-            </button>
-          </article>
-        ) : null}
-
-        <div className="projects-board">
-          {projectMetrics.map(({ project, progress, totalTasks, completedTasks }) => (
-            <article key={project.id} className="panel-card project-card">
-              <div className="project-card-head">
-                <div>
-                  <div className="project-card-title">
-                    <span className="inline-chip" style={{ background: `${project.color}1c`, color: project.color }}>
-                      {project.code}
-                    </span>
-                    <strong>{project.name}</strong>
-                  </div>
-                  <p className="muted-copy">
-                    {PROJECT_CATEGORY_LABEL[project.category]}
-                    {' · '}
-                    {project.billable ? '计费项目' : '内部项目'}
-                  </p>
-                </div>
-                <span className={`risk-badge risk-${project.health === 'risk' ? 'high' : project.health === 'attention' ? 'medium' : 'low'}`}>
-                  {project.health === 'healthy' ? '健康' : project.health === 'attention' ? '关注' : '风险'}
-                </span>
-              </div>
-
-              <div className="project-phase-strip">
-                {PROJECT_PHASES.map((phase) => (
-                  <button
-                    key={phase}
-                    type="button"
-                    className={`project-phase-step ${project.phase === phase ? 'active' : ''}`}
-                    disabled={!canManageProjects}
-                    onClick={() => onUpdateProject(project.id, { phase })}
-                  >
-                    {PROJECT_PHASE_LABEL[phase]}
-                  </button>
-                ))}
-              </div>
-
-              <div className="project-card-metrics">
-                <div>
-                  <span>当前阶段</span>
-                  <strong>{PROJECT_PHASE_LABEL[project.phase]}</strong>
-                </div>
-                <div>
-                  <span>任务进度</span>
-                  <strong>{completedTasks}/{totalTasks}</strong>
-                </div>
-                <div>
-                  <span>完成率</span>
-                  <strong>{progress}%</strong>
-                </div>
-              </div>
-
-              <div className="load-bar">
-                <div className="load-bar-fill" style={{ width: `${progress}%`, background: project.color }} />
-              </div>
-            </article>
-          ))}
+            <div className="manager-form-footer">
+              <button className="secondary-button" onClick={() => setIsCreateOpen(false)}>
+                取消
+              </button>
+              <button
+                className="primary-button"
+                disabled={!draft.name.trim() || !draft.code.trim()}
+                onClick={() => {
+                  const created = onCreateProject(draft);
+                  if (created) {
+                    setDraft(emptyDraft);
+                    setIsCreateOpen(false);
+                  }
+                }}
+              >
+                创建项目
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }
